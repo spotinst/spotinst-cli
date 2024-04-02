@@ -274,6 +274,9 @@ func handleSocketConnection(ctx context.Context, conn net.Conn, wsConn *websocke
 		return fromUpstream(conn, wsConn)
 	})
 
+	// Send websocket ping periodically to keep connection alive
+	g.Go(func() error { return sendPing(ctx, wsConn) })
+
 	return g.Wait()
 }
 
@@ -314,4 +317,20 @@ func toUpstream(downstream io.Writer, upstream *websocket.Conn) error {
 	}
 
 	return nil
+}
+
+func sendPing(ctx context.Context, wsConn *websocket.Conn) error {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			if err := wsConn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return err
+			}
+		}
+	}
 }
